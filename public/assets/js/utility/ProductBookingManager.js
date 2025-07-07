@@ -1,6 +1,6 @@
 /**
  * ProductBookingManager Class
- * Handles creating product booking cards, managing the details modal,
+ * Handles creating product booking cards, managing the details view,
  * filtering/searching bookings, and client-side pagination
  */
 class ProductBookingManager {
@@ -9,7 +9,7 @@ class ProductBookingManager {
         this.config = {
             bookingsEndpoint: '/api/user/product-bookings',
             containerSelector: '#bookings',
-            modalId: 'bookingDetailModal',
+            bookingDetailSelector: '#booking-detail-view', // New selector for the booking detail view
             filterFormId: 'booking-filters',
             searchInputId: 'booking-search',
             dateFilterId: 'booking-date-filter',
@@ -20,8 +20,8 @@ class ProductBookingManager {
             ...options
         };
 
-        // Initialize modal elements references
-        this.modal = {
+        // Initialize booking detail view elements references
+        this.detailView = {
             element: null, // Will be initialized in init()
             bookingId: null,
             productName: null,
@@ -40,6 +40,7 @@ class ProductBookingManager {
 
         // Container for booking cards
         this.container = null;
+        this.detailContainer = null;
 
         // Store all bookings for filtering
         this.allBookings = [];
@@ -49,8 +50,8 @@ class ProductBookingManager {
         this.currentPage = 1;
         this.itemsPerPage = this.config.itemsPerPage;
 
-        // Bootstrap modal instance
-        this.bsModal = null;
+        // Current selected booking
+        this.currentBookingId = null;
     }
 
     /**
@@ -64,38 +65,135 @@ class ProductBookingManager {
             return;
         }
 
-        // Initialize modal elements
-        this.modal.element = document.getElementById(this.config.modalId);
-
-        if (this.modal.element) {
-            this.modal.bookingId = document.getElementById('modal-booking-id');
-            this.modal.productName = document.getElementById('modal-product-name');
-            this.modal.productImage = document.getElementById('modal-product-image');
-            this.modal.variant = document.getElementById('modal-variant');
-            this.modal.quantity = document.getElementById('modal-quantity');
-            this.modal.unitPrice = document.getElementById('modal-unit-price');
-            this.modal.totalAmount = document.getElementById('modal-total-amount');
-            this.modal.status = document.getElementById('modal-status');
-            this.modal.bookingDate = document.getElementById('modal-booking-date');
-            this.modal.preferredDate = document.getElementById('modal-preferred-date');
-            this.modal.preferredTime = document.getElementById('modal-preferred-time');
-            this.modal.address = document.getElementById('modal-delivery-address');
-            this.modal.description = document.getElementById('modal-description');
-
-            // Create Bootstrap modal instance
-            this.bsModal = new bootstrap.Modal(this.modal.element);
-        } else {
-            console.warn(`Modal element not found: ${this.config.modalId}`);
+        // Get detail view container
+        this.detailContainer = document.querySelector(this.config.bookingDetailSelector);
+        if (!this.detailContainer) {
+            console.warn(`Detail view container not found: ${this.config.bookingDetailSelector}`);
+            // Create it if it doesn't exist
+            this.detailContainer = document.createElement('div');
+            this.detailContainer.id = this.config.bookingDetailSelector.substring(1);
+            this.detailContainer.className = 'booking-detail-view';
+            this.detailContainer.style.display = 'none';
+            
+            // Insert after container
+            if (this.container.parentNode) {
+                this.container.parentNode.insertBefore(this.detailContainer, this.container.nextSibling);
+            }
         }
 
-        // Initialize modal controls
-        this.initModalControls();
+        // Create the detail view structure
+        this.createDetailViewStructure();
+
+        // Initialize detail view controls
+        this.initDetailViewControls();
 
         // Initialize filter and search
         this.initFilterAndSearch();
 
         // Fetch and render bookings
         this.fetchAndRenderBookings();
+    }
+
+    /**
+     * Create the detail view structure
+     */
+    createDetailViewStructure() {
+        this.detailContainer.innerHTML = `
+            <div class="booking-detail card shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button id="back-to-bookings" class="btn btn-outline-primary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Bookings
+                        </button>
+                        <h5 class="mb-0 fw-bold">Booking <span id="detail-booking-id" class="text-primary"></span></h5>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="row g-0">
+                        <!-- Product Image Column -->
+                        <div class="col-lg-4 bg-light">
+                            <div class="p-4 h-100 d-flex flex-column">
+                                <div class="text-center py-4 mb-3 flex-grow-1">
+                                    <img id="detail-product-image" src="" alt="Product" class="img-fluid rounded" style="max-height: 250px;">
+                                </div>
+                                <div class="bg-white rounded p-3 shadow-sm">
+                                    <h5 id="detail-product-name" class="fw-bold mb-2"></h5>
+                                    <p class="mb-1">Variant: <span id="detail-variant" class="badge bg-secondary rounded-pill"></span></p>
+                                    <p class="mb-1">Quantity: <span id="detail-quantity" class="fw-medium"></span></p>
+                                    <p class="mb-1">Status: <span id="detail-status" class="badge rounded-pill"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Booking Details Column -->
+                        <div class="col-lg-8">
+                            <div class="p-4">
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-1">Booking Date</h6>
+                                        <p id="detail-booking-date" class="fw-medium"></p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-1">Total Amount</h6>
+                                        <p id="detail-total-amount" class="fw-bold fs-4 text-primary"></p>
+                                    </div>
+                                </div>
+                                
+                                <hr class="my-4">
+                                
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-1">Preferred Date</h6>
+                                        <p id="detail-preferred-date" class="fw-medium"></p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-1">Preferred Time</h6>
+                                        <p id="detail-preferred-time" class="fw-medium"></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <h6 class="text-muted mb-1">Delivery Address</h6>
+                                    <p id="detail-delivery-address" class="fw-medium"></p>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <h6 class="text-muted mb-1">Additional Instructions</h6>
+                                    <p id="detail-description" class="text-muted"></p>
+                                </div>
+                                
+                                <!-- Unit price -->
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-1">Unit Price</h6>
+                                        <p id="detail-unit-price" class="fw-medium"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Initialize detail view element references
+        this.detailView.element = this.detailContainer;
+        this.detailView.bookingId = document.getElementById('detail-booking-id');
+        this.detailView.productName = document.getElementById('detail-product-name');
+        this.detailView.productImage = document.getElementById('detail-product-image');
+        this.detailView.variant = document.getElementById('detail-variant');
+        this.detailView.quantity = document.getElementById('detail-quantity');
+        this.detailView.unitPrice = document.getElementById('detail-unit-price');
+        this.detailView.totalAmount = document.getElementById('detail-total-amount');
+        this.detailView.status = document.getElementById('detail-status');
+        this.detailView.bookingDate = document.getElementById('detail-booking-date');
+        this.detailView.preferredDate = document.getElementById('detail-preferred-date');
+        this.detailView.preferredTime = document.getElementById('detail-preferred-time');
+        this.detailView.address = document.getElementById('detail-delivery-address');
+        this.detailView.description = document.getElementById('detail-description');
+        
+        // Hide the detail view initially
+        this.detailContainer.style.display = 'none';
     }
 
     /**
@@ -135,7 +233,7 @@ class ProductBookingManager {
                                     <p class="text-muted mb-1">Preferred Date: ${new Date(preferredDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                                     <span class="badge bg-${this.getStatusBadgeClass(status)}-subtle text-${this.getStatusBadgeClass(status)}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
                                     <div class="mt-2">
-                                        <button class="btn btn-primary view-product-details view-details" data-booking-id="${id}" onclick="console.log('Clicked booking ID:', ${id})">View Details</button>
+                                        <button class="btn btn-primary view-product-details" data-booking-id="${id}">View Details</button>
                                     </div>
                                 </div>
                             </div>
@@ -176,9 +274,9 @@ class ProductBookingManager {
     }
 
     /**
-     * Initialize controls within the modal
+     * Initialize controls for the detail view
      */
-    initModalControls() {
+    initDetailViewControls() {
         // Add event listener to all "View Details" buttons using event delegation
         document.addEventListener('click', (e) => {
             // Check if the clicked element or its parent is a "view-product-details" button 
@@ -187,10 +285,30 @@ class ProductBookingManager {
             if (viewDetailsButton) {
                 const bookingId = viewDetailsButton.getAttribute('data-booking-id');
                 if (bookingId) {
-                    this.openBookingModal(bookingId);
+                    this.openBookingDetail(bookingId);
                 }
             }
+            
+            // Handle back button click
+            if (e.target.closest('#back-to-bookings')) {
+                this.showBookingsList();
+            }
         });
+    }
+
+    /**
+     * Show the bookings list view
+     */
+    showBookingsList() {
+        // Show the bookings list and hide the detail view
+        if (this.container) this.container.style.display = 'block';
+        if (this.detailContainer) this.detailContainer.style.display = 'none';
+        
+        // Update browser history to reflect the list view
+        if (history.pushState) {
+            const newUrl = window.location.pathname;
+            window.history.pushState({path: newUrl}, '', newUrl);
+        }
     }
 
     /**
@@ -325,6 +443,13 @@ class ProductBookingManager {
 
                 // Render first page of bookings
                 this.renderBookings(this.filteredBookings);
+                
+                // Check if URL has a booking ID to display
+                const urlParams = new URLSearchParams(window.location.search);
+                const bookingId = urlParams.get('bookingId');
+                if (bookingId) {
+                    this.openBookingDetail(bookingId);
+                }
             } else {
                 console.warn('No bookings found or invalid data format');
                 if (this.container) {
@@ -505,9 +630,9 @@ class ProductBookingManager {
     }
 
     /**
-     * Open booking modal with details
+     * Open booking detail view with details
      */
-    async openBookingModal(bookingId) {
+    async openBookingDetail(bookingId) {
         try {
             // Debug: Log the URL being called
             const url = `${this.config.bookingsEndpoint}/${bookingId}`;
@@ -534,17 +659,23 @@ class ProductBookingManager {
 
             console.log('Processed booking data:', booking);
             this.currentBooking = booking;
-            this.populateModal(booking);
+            this.populateDetailView(booking);
 
-            if (this.bsModal) {
-                this.bsModal.show();
-            } else if (this.modal.element) {
-                // Fallback if bsModal wasn't initialized
-                this.bsModal = new bootstrap.Modal(this.modal.element);
-                this.bsModal.show();
-            } else {
-                console.error('Modal element not found');
+            // Hide the list view and show the detail view
+            if (this.container) this.container.style.display = 'none';
+            if (this.detailContainer) this.detailContainer.style.display = 'block';
+            
+            // Update URL to include booking ID
+            if (history.pushState) {
+                const newUrl = `${window.location.pathname}?bookingId=${bookingId}`;
+                window.history.pushState({path: newUrl}, '', newUrl);
             }
+            
+            // Scroll to top
+            window.scrollTo(0, 0);
+            
+            // Store current booking ID
+            this.currentBookingId = bookingId;
         } catch (error) {
             console.error('Error fetching booking details:', error);
 
@@ -568,9 +699,9 @@ class ProductBookingManager {
     }
 
     /**
-     * Populate modal with booking details
+     * Populate detail view with booking details
      */
-    populateModal(booking) {
+    populateDetailView(booking) {
         if (!booking) return;
 
         // Normalize field names (handle both upper and lowercase)
@@ -591,114 +722,68 @@ class ProductBookingManager {
             variantCapacity: booking.VAR_CAPACITY || booking.var_capacity
         };
 
-        // Apply styling to modal elements
-        if (this.modal.element) {
-            // Style the modal dialog
-            const modalDialog = this.modal.element.querySelector('.modal-dialog');
-            if (modalDialog) {
-                modalDialog.classList.add('modal-lg');
-                modalDialog.classList.add('modal-dialog-centered');
-            }
-
-            // Style the modal header
-            const modalHeader = this.modal.element.querySelector('.modal-header');
-            if (modalHeader) {
-                modalHeader.classList.add('bg-light');
-                modalHeader.classList.add('border-0');
-            }
-
-            // Style the modal body
-            const modalBody = this.modal.element.querySelector('.modal-body');
-            if (modalBody) {
-                modalBody.classList.add('p-4');
-            }
+        // Check if detailView elements exist before updating them
+        if (this.detailView.bookingId) {
+            this.detailView.bookingId.textContent = `PB-${bookingData.id}`;
         }
 
-        // Check if modal elements exist before updating them
-        if (this.modal.bookingId) {
-            this.modal.bookingId.textContent = `PB-${bookingData.id}`;
-            this.modal.bookingId.classList.add('fw-bold');
+        if (this.detailView.productName) {
+            this.detailView.productName.textContent = bookingData.productName || 'N/A';
         }
 
-        if (this.modal.productName) {
-            this.modal.productName.textContent = bookingData.productName || 'N/A';
-            this.modal.productName.classList.add('fs-4');
-            this.modal.productName.classList.add('fw-bold');
-            this.modal.productName.classList.add('text-primary');
-        }
-
-        if (this.modal.productImage) {
+        if (this.detailView.productImage) {
             // Fix image path
-            this.modal.productImage.src = this.fixImagePath(bookingData.productImage);
-            this.modal.productImage.alt = bookingData.productName || 'Product Image';
-            this.modal.productImage.classList.add('img-fluid');
-            this.modal.productImage.classList.add('rounded');
-            this.modal.productImage.classList.add('shadow-sm');
+            this.detailView.productImage.src = this.fixImagePath(bookingData.productImage);
+            this.detailView.productImage.alt = bookingData.productName || 'Product Image';
         }
 
-        if (this.modal.variant) {
-            this.modal.variant.textContent = bookingData.variantCapacity || 'N/A';
-            this.modal.variant.classList.add('badge');
-            this.modal.variant.classList.add('bg-secondary');
-            this.modal.variant.classList.add('rounded-pill');
-            this.modal.variant.classList.add('px-3');
+        if (this.detailView.variant) {
+            this.detailView.variant.textContent = bookingData.variantCapacity || 'N/A';
         }
 
-        if (this.modal.quantity) {
-            this.modal.quantity.textContent = bookingData.quantity;
-            this.modal.quantity.classList.add('fw-bold');
+        if (this.detailView.quantity) {
+            this.detailView.quantity.textContent = bookingData.quantity;
         }
 
-        if (this.modal.unitPrice) {
-            this.modal.unitPrice.textContent = bookingData.status === 'completed' && bookingData.unitPrice && parseFloat(bookingData.unitPrice) !== 0
+        if (this.detailView.unitPrice) {
+            this.detailView.unitPrice.textContent = bookingData.status === 'completed' && bookingData.unitPrice && parseFloat(bookingData.unitPrice) !== 0
                 ? `₱${parseFloat(bookingData.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : 'Price pending';
-            this.modal.unitPrice.classList.add('fw-bold');
         }
 
-        if (this.modal.totalAmount) {
-            this.modal.totalAmount.textContent = bookingData.status === 'completed' && bookingData.totalAmount && parseFloat(bookingData.totalAmount) !== 0
+        if (this.detailView.totalAmount) {
+            this.detailView.totalAmount.textContent = bookingData.status === 'completed' && bookingData.totalAmount && parseFloat(bookingData.totalAmount) !== 0
                 ? `₱${parseFloat(bookingData.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : 'Price pending';
-            this.modal.totalAmount.classList.add('fs-4');
-            this.modal.totalAmount.classList.add('fw-bold');
-            this.modal.totalAmount.classList.add('text-primary');
         }
 
-        if (this.modal.status) {
+        if (this.detailView.status) {
             const statusText = bookingData.status.charAt(0).toUpperCase() + bookingData.status.slice(1);
-            this.modal.status.textContent = statusText;
+            this.detailView.status.textContent = statusText;
 
             // Add appropriate status class
-            this.modal.status.className = ''; // Clear existing classes
-            this.modal.status.classList.add('badge');
-
+            this.detailView.status.className = 'badge rounded-pill'; // Clear existing classes
             const statusClass = this.getStatusBadgeClass(bookingData.status);
-            this.modal.status.classList.add(`bg-${statusClass}`);
-            this.modal.status.classList.add('rounded-pill');
-            this.modal.status.classList.add('px-3');
-            this.modal.status.classList.add('py-2');
+            this.detailView.status.classList.add(`bg-${statusClass}`);
         }
 
-        if (this.modal.bookingDate) {
-            this.modal.bookingDate.textContent = new Date(bookingData.bookingDate).toLocaleDateString('en-US', {
+        if (this.detailView.bookingDate) {
+            this.detailView.bookingDate.textContent = new Date(bookingData.bookingDate).toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'short',
                 day: 'numeric'
             });
-            this.modal.bookingDate.classList.add('text-muted');
         }
 
-        if (this.modal.preferredDate) {
-            this.modal.preferredDate.textContent = new Date(bookingData.preferredDate).toLocaleDateString('en-US', {
+        if (this.detailView.preferredDate) {
+            this.detailView.preferredDate.textContent = new Date(bookingData.preferredDate).toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'short',
                 day: 'numeric'
             });
-            this.modal.preferredDate.classList.add('fw-bold');
         }
 
-        if (this.modal.preferredTime) {
+        if (this.detailView.preferredTime) {
             // Format time from HH:MM:SS to HH:MM AM/PM
             let timeText = 'N/A';
             if (bookingData.preferredTime) {
@@ -711,18 +796,15 @@ class ProductBookingManager {
                     timeText = `${displayHours}:${minutes} ${period}`;
                 }
             }
-            this.modal.preferredTime.textContent = timeText;
-            this.modal.preferredTime.classList.add('fw-bold');
+            this.detailView.preferredTime.textContent = timeText;
         }
 
-        if (this.modal.address) {
-            this.modal.address.textContent = bookingData.address || 'N/A';
-            this.modal.address.classList.add('text-muted');
+        if (this.detailView.address) {
+            this.detailView.address.textContent = bookingData.address || 'N/A';
         }
 
-        if (this.modal.description) {
-            this.modal.description.textContent = bookingData.description || 'No additional instructions provided';
-            this.modal.description.classList.add('text-muted');
+        if (this.detailView.description) {
+            this.detailView.description.textContent = bookingData.description || 'No additional instructions provided';
         }
     }
 }

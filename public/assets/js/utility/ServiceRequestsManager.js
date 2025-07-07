@@ -1,6 +1,6 @@
 /**
  * ServiceRequestsManager Class
- * Handles creating service request cards, managing the details modal,
+ * Handles creating service request cards, managing the details view,
  * filtering/searching service requests, and client-side pagination
  */
 class ServiceRequestsManager {
@@ -9,7 +9,7 @@ class ServiceRequestsManager {
         this.config = {
             serviceRequestsEndpoint: '/api/user/service-bookings',
             containerSelector: '#service-requests-list-container',
-            modalId: 'serviceRequestDetailModal',
+            detailViewSelector: '#service-detail-view', // Changed from modalId to detailViewSelector
             filterFormId: 'service-request-filters',
             searchInputId: 'service-request-search',
             dateFilterId: 'date-filter',
@@ -22,25 +22,28 @@ class ServiceRequestsManager {
         // Set card template after configuration is complete
         this.config.cardTemplate = this.config.cardTemplate || this.getDefaultCardTemplate();
 
-        // Initialize modal elements references
-        this.modal = {
-            element: document.getElementById(this.config.modalId),
-            serviceId: document.getElementById('modal-service-id'),
-            serviceName: document.getElementById('modal-service-name'),
-            serviceDescription: document.getElementById('modal-service-description'),
-            requestedDate: document.getElementById('modal-requested-date'),
-            requestedTime: document.getElementById('modal-requested-time'),
-            address: document.getElementById('modal-address'),
-            status: document.getElementById('modal-status'),
-            estimatedCost: document.getElementById('modal-estimated-cost'),
-            priority: document.getElementById('modal-priority'),
-            notes: document.getElementById('modal-notes'),
-            statusBadge: document.getElementById('modal-status-badge'),
-            serviceIcon: document.getElementById('modal-service-icon')
+        // Initialize detail view elements references
+        this.detailView = {
+            element: null, // Will be initialized in init() or createDetailViewStructure()
+            serviceId: null,
+            serviceName: null,
+            serviceDescription: null,
+            requestedDate: null,
+            requestedTime: null,
+            address: null,
+            status: null,
+            estimatedCost: null,
+            priority: null,
+            notes: null,
+            statusBadge: null,
+            serviceIcon: null
         };
 
         // Container for service request cards
         this.container = document.querySelector(this.config.containerSelector);
+
+        // Detail view container
+        this.detailContainer = document.querySelector(this.config.detailViewSelector);
 
         // Store all service requests for filtering
         this.allServiceRequests = [];
@@ -50,11 +53,128 @@ class ServiceRequestsManager {
         this.currentPage = 1;
         this.itemsPerPage = this.config.itemsPerPage;
 
-        // Initialize modal controls
-        this.initModalControls();
+        // Current selected service
+        this.currentServiceId = null;
+
+        // Initialize the detail view
+        this.init();
+    }
+
+    /**
+     * Initialize the ServiceRequestsManager
+     */
+    init() {
+        // Ensure container exists
+        if (!this.container) {
+            console.error(`Container element not found: ${this.config.containerSelector}`);
+            return;
+        }
+
+        // Get detail view container
+        if (!this.detailContainer) {
+            console.warn(`Detail view container not found: ${this.config.detailViewSelector}`);
+            // Create it if it doesn't exist
+            this.detailContainer = document.createElement('div');
+            this.detailContainer.id = this.config.detailViewSelector.substring(1);
+            this.detailContainer.className = 'service-detail-view';
+            this.detailContainer.style.display = 'none';
+            
+            // Insert after container
+            if (this.container.parentNode) {
+                this.container.parentNode.insertBefore(this.detailContainer, this.container.nextSibling);
+            }
+        }
+
+        // Create the detail view structure
+        this.createDetailViewStructure();
+
+        // Initialize detail view controls
+        this.initDetailViewControls();
 
         // Initialize filter and search
         this.initFilterAndSearch();
+    }
+
+    /**
+     * Create the detail view structure
+     */
+    createDetailViewStructure() {
+        this.detailContainer.innerHTML = `
+            <div class="service-detail card shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button id="back-to-services" class="btn btn-outline-danger">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Service Requests
+                        </button>
+                        <h5 class="mb-0 fw-bold">Service Request <span id="detail-service-id" class="text-danger"></span></h5>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="p-4">
+                        <div class="d-flex justify-content-between align-items-start mb-4">
+                            <div class="d-flex align-items-center">
+                                <div id="detail-service-icon" class="service-icon me-3"></div>
+                                <h4 id="detail-service-name" class="fs-4 fw-bold text-primary mb-0"></h4>
+                            </div>
+                            <span id="detail-status-badge" class="badge rounded-pill px-3 py-2"></span>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card shadow-sm mb-3">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Service Information</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="mb-2"><strong>Service Type:</strong> <span id="detail-service-description"></span></p>
+                                        <p class="mb-2"><strong>Estimated Cost:</strong> <span id="detail-estimated-cost" class="fw-bold"></span></p>
+                                        <p class="mb-0"><strong>Priority:</strong> <span id="detail-priority"></span></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card shadow-sm mb-3">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Schedule Details</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="mb-2"><strong>Preferred Date:</strong> <span id="detail-requested-date"></span></p>
+                                        <p class="mb-2"><strong>Preferred Time:</strong> <span id="detail-requested-time"></span></p>
+                                        <p class="mb-0"><strong>Service Address:</strong> <span id="detail-address"></span></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Request Details</h6>
+                            </div>
+                            <div class="card-body">
+                                <p id="detail-notes" style="white-space: pre-wrap;"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Initialize detail view element references
+        this.detailView.element = this.detailContainer;
+        this.detailView.serviceId = document.getElementById('detail-service-id');
+        this.detailView.serviceName = document.getElementById('detail-service-name');
+        this.detailView.serviceDescription = document.getElementById('detail-service-description');
+        this.detailView.requestedDate = document.getElementById('detail-requested-date');
+        this.detailView.requestedTime = document.getElementById('detail-requested-time');
+        this.detailView.address = document.getElementById('detail-address');
+        this.detailView.estimatedCost = document.getElementById('detail-estimated-cost');
+        this.detailView.priority = document.getElementById('detail-priority');
+        this.detailView.notes = document.getElementById('detail-notes');
+        this.detailView.statusBadge = document.getElementById('detail-status-badge');
+        this.detailView.serviceIcon = document.getElementById('detail-service-icon');
+        
+        // Hide the detail view initially
+        this.detailContainer.style.display = 'none';
     }
 
     /**
@@ -96,7 +216,7 @@ class ServiceRequestsManager {
                                 <p class="text-muted mb-1">Requested on: ${new Date(service.SB_CREATED_AT).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                                 <span class="badge bg-${this.getStatusBadgeClass(service.SB_STATUS)}-subtle text-${this.getStatusBadgeClass(service.SB_STATUS)}">${service.SB_STATUS ? service.SB_STATUS.charAt(0).toUpperCase() + service.SB_STATUS.slice(1) : 'Unknown'}</span>
                                 <div class="mt-2">
-                                    <button class="btn btn-danger view-service-details view-details" data-service-id="${service.SB_ID}">View Details</button>
+                                    <button class="btn btn-danger view-service-details" data-service-id="${service.SB_ID}">View Details</button>
                                 </div>
                             </div>
                         </div>
@@ -123,9 +243,9 @@ class ServiceRequestsManager {
     }
 
     /**
-     * Initialize controls within the modal
+     * Initialize controls for the detail view
      */
-    initModalControls() {
+    initDetailViewControls() {
         // Add event listener to all "View Details" buttons using event delegation
         document.addEventListener('click', (e) => {
             // Check if the clicked element or its parent is a "view-service-details" button
@@ -133,10 +253,30 @@ class ServiceRequestsManager {
             if (viewDetailsButton) {
                 const serviceId = viewDetailsButton.getAttribute('data-service-id');
                 if (serviceId) {
-                    this.openServiceRequestModal(serviceId);
+                    this.openServiceDetail(serviceId);
                 }
             }
+            
+            // Handle back button click
+            if (e.target.closest('#back-to-services')) {
+                this.showServicesList();
+            }
         });
+    }
+
+    /**
+     * Show the services list view
+     */
+    showServicesList() {
+        // Show the services list and hide the detail view
+        if (this.container) this.container.style.display = 'block';
+        if (this.detailContainer) this.detailContainer.style.display = 'none';
+        
+        // Update browser history to reflect the list view
+        if (history.pushState) {
+            const newUrl = window.location.pathname;
+            window.history.pushState({path: newUrl}, '', newUrl);
+        }
     }
 
     /**
@@ -189,6 +329,13 @@ class ServiceRequestsManager {
                     const resultsCountElement = document.getElementById('service-results-count');
                     if (resultsCountElement) {
                         resultsCountElement.textContent = `Showing ${this.filteredServiceRequests.length} of ${this.allServiceRequests.length} service requests`;
+                    }
+                    
+                    // Check if URL has a service ID to display
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const serviceId = urlParams.get('serviceId');
+                    if (serviceId) {
+                        this.openServiceDetail(serviceId);
                     }
                 } else {
                     this.handleError('Failed to load service requests');
@@ -261,13 +408,7 @@ class ServiceRequestsManager {
         prevLink.href = '#';
         prevLink.setAttribute('aria-label', 'Previous');
         prevLink.innerHTML = '<span aria-hidden="true">&laquo;</span>';
-        prevLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (this.currentPage > 1) {
-                this.currentPage--;
-                this.renderServiceRequests();
-            }
-        });
+        prevLink.setAttribute('data-page', 'prev');
         prevLi.appendChild(prevLink);
         ul.appendChild(prevLi);
 
@@ -288,11 +429,7 @@ class ServiceRequestsManager {
             link.className = 'page-link';
             link.href = '#';
             link.textContent = i;
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.currentPage = i;
-                this.renderServiceRequests();
-            });
+            link.setAttribute('data-page', i);
             li.appendChild(link);
             ul.appendChild(li);
         }
@@ -305,24 +442,21 @@ class ServiceRequestsManager {
         nextLink.href = '#';
         nextLink.setAttribute('aria-label', 'Next');
         nextLink.innerHTML = '<span aria-hidden="true">&raquo;</span>';
-        nextLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (this.currentPage < totalPages) {
-                this.currentPage++;
-                this.renderServiceRequests();
-            }
-        });
+        nextLink.setAttribute('data-page', 'next');
         nextLi.appendChild(nextLink);
         ul.appendChild(nextLi);
 
         nav.appendChild(ul);
         paginationContainer.appendChild(nav);
+        
+        // Initialize pagination controls
+        this.initPaginationControls();
     }
 
     /**
-     * Open the service request detail modal
+     * Open the service request detail view
      */
-    openServiceRequestModal(serviceId) {
+    openServiceDetail(serviceId) {
         try {
             // Find the service request in our existing list.
             // serviceId is a string from data-attribute, SB_ID might be a number or string.
@@ -337,27 +471,27 @@ class ServiceRequestsManager {
                 return;
             }
 
-            // this.currentServiceRequest = service; // Store if needed for other modal interactions
+            // Store the current service ID
+            this.currentServiceId = serviceId;
 
-            this.populateModal(service);
+            // Populate the detail view
+            this.populateDetailView(service);
 
-            if (!this.modal.element) {
-                console.error(`Modal element (ID: ${this.config.modalId}) not found in the DOM.`);
-                alert('Error: The details view component is missing. Please contact support.');
-                return;
+            // Hide the list view and show the detail view
+            if (this.container) this.container.style.display = 'none';
+            if (this.detailContainer) this.detailContainer.style.display = 'block';
+            
+            // Update URL to include service ID
+            if (history.pushState) {
+                const newUrl = `${window.location.pathname}?serviceId=${serviceId}`;
+                window.history.pushState({path: newUrl}, '', newUrl);
             }
-
-            if (typeof bootstrap === 'undefined' || typeof bootstrap.Modal === 'undefined') {
-                console.error('Bootstrap Modal component is not loaded or bootstrap is not defined.');
-                alert('Error: A required UI component (Modal) is not available. Please ensure Bootstrap JavaScript is loaded.');
-                return;
-            }
-
-            const bsModal = bootstrap.Modal.getOrCreateInstance(this.modal.element);
-            bsModal.show();
+            
+            // Scroll to top
+            window.scrollTo(0, 0);
 
         } catch (error) {
-            console.error('Error in openServiceRequestModal:', error);
+            console.error('Error in openServiceDetail:', error);
             alert('An unexpected error occurred while trying to display the service details. Please try again.');
         }
     }
@@ -369,21 +503,6 @@ class ServiceRequestsManager {
         if (this.container) {
             this.container.innerHTML = `<div class="alert alert-danger">${message}</div>`;
         }
-    }
-
-    /**
-     * Handle error in the modal
-     */
-    handleModalError(message) {
-        this.modal.serviceName.textContent = 'Error';
-        this.modal.serviceDescription.textContent = message;
-        this.modal.requestedDate.textContent = '';
-        this.modal.requestedTime.textContent = '';
-        this.modal.address.textContent = '';
-        this.modal.status.textContent = '';
-        this.modal.estimatedCost.textContent = '';
-        this.modal.priority.textContent = '';
-        this.modal.notes.textContent = '';
     }
 
     /**
@@ -453,131 +572,6 @@ class ServiceRequestsManager {
     }
 
     /**
-     * Fetch service requests from API and render them
-     */
-    async fetchAndRenderServiceRequests() {
-        // Ensure container exists before trying to manipulate it
-        if (!this.container) {
-            console.error(`Container with selector '${this.config.containerSelector}' not found.`);
-            return;
-        }
-
-        try {
-            const response = await axios.get(this.config.serviceRequestsEndpoint);
-
-            // Check if response has the expected structure with success and data properties
-            if (response.data && response.data.success && Array.isArray(response.data.data)) {
-                const serviceRequests = response.data.data;
-                this.allServiceRequests = serviceRequests;
-                this.filteredServiceRequests = [...serviceRequests]; // Initialize filtered list
-
-                if (serviceRequests.length > 0) {
-                    this.applyFilters(); // Apply any default/pre-set filters before initial render
-                } else {
-                    this.container.innerHTML = '<div class="col-12"><p class="text-center">No service requests available at the moment.</p></div>';
-                    this.renderPagination(0);
-                }
-            } else {
-                console.error('Invalid data format received. Expected an array of service requests.', response.data);
-                this.container.innerHTML = '<div class="col-12"><p class="text-center text-danger">Could not load service requests due to invalid data format.</p></div>';
-                this.renderPagination(0);
-            }
-        } catch (error) {
-            console.error('Error fetching service requests:', error);
-            this.container.innerHTML = '<div class="col-12"><p class="text-center text-danger">Failed to load service requests. Please try again later.</p></div>';
-            this.renderPagination(0);
-        }
-    }
-
-    /**
-     * Render service request cards with pagination
-     */
-    renderServiceRequests(serviceRequests) {
-        if (!this.container) {
-            console.error('Service request container not found for rendering.');
-            return;
-        }
-
-        if (serviceRequests.length === 0) {
-            this.container.innerHTML = '<div class="col-12"><p class="text-center">No service requests match your criteria.</p></div>';
-            this.renderPagination(0);
-            return;
-        }
-
-        const startIndex = (this.currentPage - 1) * this.itemsPerPage;
-        const endIndex = startIndex + this.itemsPerPage;
-        const paginatedServiceRequests = serviceRequests.slice(startIndex, endIndex);
-
-        this.container.innerHTML = paginatedServiceRequests.map(service => this.config.cardTemplate(service)).join('');
-        this.renderPagination(serviceRequests.length);
-    }
-
-    /**
-     * Render pagination controls
-     */
-    renderPagination(totalItems) {
-        const paginationContainer = document.querySelector(this.config.paginationContainerSelector);
-        if (!paginationContainer) return;
-
-        const totalPages = Math.ceil(totalItems / this.itemsPerPage);
-
-        if (totalPages <= 1) { // Also hide if only one page
-            paginationContainer.innerHTML = '';
-            return;
-        }
-
-        let paginationHTML = `
-            <nav aria-label="Service request pagination">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item ${this.currentPage === 1 ? 'disabled' : ''}">
-                        <a class="page-link" href="#" data-page="prev" aria-label="Previous"><span aria-hidden="true">«</span></a>
-                    </li>
-        `;
-
-        const maxPageButtons = 5; // Max number of page buttons to show
-        let startPage = Math.max(1, this.currentPage - Math.floor(maxPageButtons / 2));
-        let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
-
-        // Adjust startPage if endPage is at the limit and there are fewer than maxPageButtons
-        if (endPage - startPage + 1 < maxPageButtons) {
-            startPage = Math.max(1, endPage - maxPageButtons + 1);
-        }
-
-        if (startPage > 1) {
-            paginationHTML += `<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>`;
-            if (startPage > 2) {
-                paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-            }
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            paginationHTML += `
-                <li class="page-item ${this.currentPage === i ? 'active' : ''}">
-                    <a class="page-link" href="#" data-page="${i}">${i}</a>
-                </li>
-            `;
-        }
-
-        if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-            }
-            paginationHTML += `<li class="page-item"><a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a></li>`;
-        }
-
-        paginationHTML += `
-                    <li class="page-item ${this.currentPage === totalPages ? 'disabled' : ''}">
-                        <a class="page-link" href="#" data-page="next" aria-label="Next"><span aria-hidden="true">»</span></a>
-                    </li>
-                </ul>
-            </nav>
-        `;
-
-        paginationContainer.innerHTML = paginationHTML;
-        this.initPaginationControls(); // Re-initialize controls as HTML is replaced
-    }
-
-    /**
      * Initialize pagination controls
      */
     initPaginationControls() {
@@ -625,35 +619,35 @@ class ServiceRequestsManager {
     }
 
     /**
-     * Populate modal with service request details
+     * Populate detail view with service request details
      */
-    populateModal(service) {
+    populateDetailView(service) {
         if (!service) return;
 
         const safeSetText = (element, text) => {
             if (element) element.textContent = text !== null && text !== undefined ? String(text) : 'N/A';
         };
 
-        safeSetText(this.modal.serviceId, `SRV-${service.SB_ID}`);
-        safeSetText(this.modal.serviceName, service.ST_NAME);
-        safeSetText(this.modal.serviceDescription, service.ST_DESCRIPTION || 'No description available');
+        safeSetText(this.detailView.serviceId, `SRV-${service.SB_ID}`);
+        safeSetText(this.detailView.serviceName, service.ST_NAME);
+        safeSetText(this.detailView.serviceDescription, service.ST_DESCRIPTION || 'No description available');
 
-        if (this.modal.requestedDate) {
+        if (this.detailView.requestedDate) {
             try {
                 const date = service.SB_PREFERRED_DATE ? new Date(service.SB_PREFERRED_DATE) : null;
-                this.modal.requestedDate.textContent = date ? date.toLocaleDateString('en-US', {
+                this.detailView.requestedDate.textContent = date ? date.toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric'
                 }) : 'N/A';
             } catch (e) {
                 console.warn('Error formatting requestedDate:', e);
-                this.modal.requestedDate.textContent = 'Invalid Date';
+                this.detailView.requestedDate.textContent = 'Invalid Date';
             }
         }
 
         // Format the time in 12-hour format with AM/PM
-        if (this.modal.requestedTime && service.SB_PREFERRED_TIME) {
+        if (this.detailView.requestedTime && service.SB_PREFERRED_TIME) {
             try {
                 // Parse the time string (expected format: HH:MM:SS)
                 const timeParts = service.SB_PREFERRED_TIME.split(':');
@@ -664,56 +658,48 @@ class ServiceRequestsManager {
                     const hours12 = hours % 12 || 12; // Convert to 12-hour format (0 becomes 12)
 
                     // Format as hours:minutes AM/PM
-                    this.modal.requestedTime.textContent = `${hours12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                    this.detailView.requestedTime.textContent = `${hours12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
                 } else {
-                    safeSetText(this.modal.requestedTime, service.SB_PREFERRED_TIME);
+                    safeSetText(this.detailView.requestedTime, service.SB_PREFERRED_TIME);
                 }
             } catch (e) {
                 console.warn('Error formatting requestedTime:', e);
-                safeSetText(this.modal.requestedTime, service.SB_PREFERRED_TIME);
+                safeSetText(this.detailView.requestedTime, service.SB_PREFERRED_TIME);
             }
         } else {
-            safeSetText(this.modal.requestedTime, service.SB_PREFERRED_TIME);
+            safeSetText(this.detailView.requestedTime, service.SB_PREFERRED_TIME);
         }
 
         // Ensure we use the proper field name for address
-        safeSetText(this.modal.address, service.SB_ADDRESS || service.sb_address);
+        safeSetText(this.detailView.address, service.SB_ADDRESS || service.sb_address);
 
         // Set the service icon
-        if (this.modal.serviceIcon) {
-            this.modal.serviceIcon.innerHTML = `<i class="${this.getServiceIcon(service.ST_CODE)}"></i>`;
+        if (this.detailView.serviceIcon) {
+            this.detailView.serviceIcon.innerHTML = `<i class="${this.getServiceIcon(service.ST_CODE)}"></i>`;
         }
 
         // Set status with badge style
-        if (this.modal.statusBadge && service.SB_STATUS) {
+        if (this.detailView.statusBadge && service.SB_STATUS) {
             const statusClass = this.getStatusBadgeClass(service.SB_STATUS);
             const statusText = service.SB_STATUS.charAt(0).toUpperCase() + service.SB_STATUS.slice(1);
-            this.modal.statusBadge.className = `badge bg-${statusClass}-subtle text-${statusClass}`;
-            this.modal.statusBadge.textContent = statusText;
+            this.detailView.statusBadge.className = `badge bg-${statusClass}-subtle text-${statusClass}`;
+            this.detailView.statusBadge.textContent = statusText;
         }
 
-        // Keep the old status field updated for backward compatibility
-        if (this.modal.status && service.SB_STATUS) {
-            this.modal.status.textContent = service.SB_STATUS.charAt(0).toUpperCase() + service.SB_STATUS.slice(1);
-        } else if (this.modal.status) {
-            this.modal.status.textContent = 'N/A';
-        }
-
-        if (this.modal.estimatedCost) {
-            this.modal.estimatedCost.textContent =
+        if (this.detailView.estimatedCost) {
+            this.detailView.estimatedCost.textContent =
                 service.SB_STATUS === 'completed' && service.SB_ESTIMATED_COST && parseFloat(service.SB_ESTIMATED_COST) !== 0
                     ? `₱${parseFloat(service.SB_ESTIMATED_COST).toFixed(2)}`
                     : 'Estimate pending';
         }
 
-
-        if (this.modal.priority && service.SB_PRIORITY) {
-            this.modal.priority.textContent = service.SB_PRIORITY.charAt(0).toUpperCase() + service.SB_PRIORITY.slice(1);
-        } else if (this.modal.priority) {
-            this.modal.priority.textContent = 'N/A';
+        if (this.detailView.priority && service.SB_PRIORITY) {
+            this.detailView.priority.textContent = service.SB_PRIORITY.charAt(0).toUpperCase() + service.SB_PRIORITY.slice(1);
+        } else if (this.detailView.priority) {
+            this.detailView.priority.textContent = 'N/A';
         }
 
         // Use SB_DESCRIPTION for the notes field
-        safeSetText(this.modal.notes, service.SB_DESCRIPTION || service.sb_description || 'No additional notes');
+        safeSetText(this.detailView.notes, service.SB_DESCRIPTION || service.sb_description || 'No additional notes');
     }
 }

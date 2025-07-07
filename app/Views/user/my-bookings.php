@@ -20,6 +20,41 @@
             padding: 20px;
             color: #6c757d;
         }
+        
+        /* Styles for the booking detail view */
+        .booking-detail-view,
+        .service-detail-view {
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .booking-detail,
+        .service-detail {
+            border: none;
+            border-radius: 12px;
+        }
+        
+        .booking-detail .card-header,
+        .service-detail .card-header {
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        /* Service icon styling in detail view */
+        .service-detail-view .service-icon i {
+            font-size: 1.75rem;
+            color: #dc3545;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(220, 53, 69, 0.1);
+            border-radius: 50%;
+            padding: 10px;
+        }
     </style>
 </head>
 <body>
@@ -131,6 +166,11 @@
                         <!-- Booking items will be rendered here -->
                     </div>
 
+                    <!-- Product Booking Detail View Container (NEW) -->
+                    <div id="booking-detail-view" style="display: none;">
+                        <!-- Booking detail view will be rendered here by JS -->
+                    </div>
+
                     <!-- Pagination Container (to be populated by JS) -->
                     <div id="product-pagination-container" class="d-flex justify-content-center mt-4">
                         <!-- Pagination will be rendered here -->
@@ -171,6 +211,11 @@
                     <!-- Service Request Items Container (to be populated by JS) -->
                     <div id="service-requests-list-container">
                     </div>
+                    
+                    <!-- Service Request Detail View Container (NEW) -->
+                    <div id="service-detail-view" style="display: none;">
+                        <!-- Service detail view will be rendered here by JS -->
+                    </div>
 
                     <!-- Pagination Container (to be populated by JS) -->
                     <div id="services-pagination-container" class="d-flex justify-content-center mt-4">
@@ -179,140 +224,6 @@
             </div>
         </div>
     </section>
-
-    <!-- Service Request Detail Modal -->
-    <div class="modal fade" id="serviceRequestDetailModal" tabindex="-1" aria-labelledby="serviceRequestDetailModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-light">
-                    <h5 class="modal-title" id="serviceRequestDetailModalLabel">
-                        <span class="service-icon me-2" id="modal-service-icon"></span>
-                        Service Request: <span id="modal-service-id" class="fw-bold"></span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                <div class="d-flex justify-content-between align-items-start mb-3 p-3">
-                    <h4 id="modal-service-name" class="fw-bold mb-0"></h4>
-                    <span id="modal-status-badge" class="badge"></span>
-                </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="card shadow-sm mb-3">
-                                <div class="card-header bg-light">
-                                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Service Information</h6>
-                                </div>
-                                <div class="card-body">
-                                    <p class="mb-2"><strong>Service Type:</strong> <span id="modal-service-description"></span></p>
-                                    <p class="mb-2"><strong>Estimated Cost:</strong> <span id="modal-estimated-cost" class="fw-bold"></span></p>
-                                    <p class="mb-0"><strong>Priority:</strong> <span id="modal-priority"></span></p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card shadow-sm mb-3">
-                                <div class="card-header bg-light">
-                                    <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Schedule Details</h6>
-                                </div>
-                                <div class="card-body">
-                                    <p class="mb-2"><strong>Preferred Date:</strong> <span id="modal-requested-date"></span></p>
-                                    <p class="mb-2"><strong>Preferred Time:</strong> <span id="modal-requested-time"></span></p>
-                                    <p class="mb-0"><strong>Service Address:</strong> <span id="modal-address"></span></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card shadow-sm">
-                        <div class="card-header bg-light">
-                            <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Request Details</h6>
-                        </div>
-                        <div class="card-body">
-                            <p id="modal-notes" style="white-space: pre-wrap;"></p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Product Booking Detail Modal -->
-    <div class="modal fade" id="productBookingDetailModal" tabindex="-1" aria-labelledby="productBookingDetailModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-light">
-                    <h5 class="modal-title" id="productBookingDetailModalLabel">
-                        <i class="fas fa-shopping-cart me-2"></i>
-                        Product Booking: <span id="modal-booking-id" class="fw-bold"></span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div class="row">
-                        <div class="col-md-4 text-center mb-4 mb-md-0">
-                            <img id="modal-product-image" src="" alt="Product Image" class="img-fluid rounded shadow-sm mb-3" style="max-height: 200px;">
-                        </div>
-                        <div class="col-md-8">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                                <h4 id="modal-product-name" class="fs-4 fw-bold text-primary mb-0"></h4>
-                                <span id="modal-status" class="badge rounded-pill px-3 py-2"></span>
-                            </div>
-                            <p class="mb-2">Variant: <span id="modal-variant" class="badge bg-secondary rounded-pill px-3"></span></p>
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <div>
-                                    <p class="mb-0">Quantity: <span id="modal-quantity" class="fw-bold"></span></p>
-                                    <p class="mb-0">Unit Price: <span id="modal-unit-price" class="fw-bold"></span></p>
-                                </div>
-                                <div>
-                                    <p class="mb-0">Total Amount: <span id="modal-total-amount" class="fs-4 fw-bold text-primary"></span></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row mt-4">
-                        <div class="col-md-6">
-                            <div class="card shadow-sm mb-3">
-                                <div class="card-header bg-light">
-                                    <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Booking Details</h6>
-                                </div>
-                                <div class="card-body">
-                                    <p class="mb-2"><strong>Booking Date:</strong> <span id="modal-booking-date" class="text-muted"></span></p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card shadow-sm mb-3">
-                                <div class="card-header bg-light">
-                                    <h6 class="mb-0"><i class="fas fa-truck me-2"></i>Delivery Details</h6>
-                                </div>
-                                <div class="card-body">
-                                    <p class="mb-2"><strong>Preferred Date:</strong> <span id="modal-preferred-date" class="fw-bold"></span></p>
-                                    <p class="mb-2"><strong>Preferred Time:</strong> <span id="modal-preferred-time" class="fw-bold"></span></p>
-                                    <p class="mb-0"><strong>Delivery Address:</strong> <span id="modal-delivery-address" class="text-muted"></span></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="card shadow-sm mb-3">
-                        <div class="card-header bg-light">
-                            <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Additional Instructions</h6>
-                        </div>
-                        <div class="card-body">
-                            <p id="modal-description" class="text-muted" style="white-space: pre-wrap;">No additional instructions provided</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Footer -->
     <?php require __DIR__. '/../includes/shared/footer.php' ?>
@@ -380,7 +291,7 @@
                 // The JS also fetches individual service details: `${this.config.serviceRequestsEndpoint}/${serviceId}`
                 // So, our backend route /api/user/service-bookings/[i:id] will handle this.
                 containerSelector: '#service-requests-list-container', // Where cards are rendered
-                modalId: 'serviceRequestDetailModal',
+                detailViewSelector: '#service-detail-view', // New selector for the service detail view
                 filterFormId: 'service-request-filters',
                 searchInputId: 'service-request-search',
                 dateFilterId: 'date-filter',
@@ -401,7 +312,7 @@
             productBookingManagerInstance = new ProductBookingManager({
                 bookingsEndpoint: '/api/user/product-bookings', // API endpoint for product bookings
                 containerSelector: '#product-bookings-container', // Where cards are rendered
-                modalId: 'productBookingDetailModal',
+                bookingDetailSelector: '#booking-detail-view', // Added new selector for the booking detail view
                 filterFormId: 'product-booking-filters',
                 searchInputId: 'product-booking-search',
                 dateFilterId: 'product-date-filter',
