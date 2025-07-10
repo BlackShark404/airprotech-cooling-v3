@@ -853,6 +853,57 @@ class ProductController extends BaseController
         
         // Enhance the response with additional information
         if ($bookings) {
+            // Get all booking IDs for a single query
+            $bookingIds = array_map(function($booking) {
+                return $booking['pb_id'] ?? $booking['PB_ID'] ?? null;
+            }, $bookings);
+            
+            // Filter out null values and make unique
+            $bookingIds = array_filter(array_unique($bookingIds));
+            
+            // Get all technicians for all bookings in one query if we have booking IDs
+            $allTechnicians = [];
+            if (!empty($bookingIds)) {
+                $allTechnicians = $this->productBookingModel->getAssignedTechniciansForMultipleBookings($bookingIds);
+            }
+            
+            // Get all technician user IDs for a single query
+            $technicianIds = array_map(function($tech) {
+                return $tech['id'] ?? null;
+            }, $allTechnicians);
+            
+            // Filter out null values and make unique
+            $technicianIds = array_filter(array_unique($technicianIds));
+            
+            // Get all technician user info in one query
+            $technicianUserInfo = [];
+            if (!empty($technicianIds)) {
+                $techInfoResult = $this->getUserInfoForMultipleTechnicians($technicianIds);
+                foreach ($techInfoResult as $info) {
+                    $technicianUserInfo[$info['UA_ID']] = $info;
+                }
+            }
+            
+            // Group technicians by booking ID
+            $techniciansByBooking = [];
+            foreach ($allTechnicians as $tech) {
+                $bookingId = $tech['booking_id'];
+                if (!isset($techniciansByBooking[$bookingId])) {
+                    $techniciansByBooking[$bookingId] = [];
+                }
+                
+                // Add user info from the pre-fetched array
+                if (isset($technicianUserInfo[$tech['id']])) {
+                    $userInfo = $technicianUserInfo[$tech['id']];
+                    $tech['profile_url'] = !empty($userInfo['UA_PROFILE_URL']) ? $userInfo['UA_PROFILE_URL'] : null;
+                    $tech['email'] = $userInfo['UA_EMAIL'] ?? '';
+                    $tech['phone'] = $userInfo['UA_PHONE_NUMBER'] ?? '';
+                }
+                
+                $techniciansByBooking[$bookingId][] = $tech;
+            }
+            
+            // Assign technicians to their respective bookings
             foreach ($bookings as &$booking) {
                 // Convert uppercase keys to lowercase for consistency
                 if (isset($booking['CUSTOMER_EMAIL'])) {
@@ -865,22 +916,13 @@ class ProductController extends BaseController
                     $booking['customer_profile_url'] = $booking['CUSTOMER_PROFILE_URL'];
                 } 
 
-                // Get assigned technicians for each booking
-                $booking['technicians'] = $this->productBookingModel->getAssignedTechnicians($booking['pb_id'] ?? $booking['PB_ID'] ?? null);
+                // Get booking ID in a consistent way
+                $bookingId = $booking['pb_id'] ?? $booking['PB_ID'] ?? null;
                 
-                // Add profile images to technicians
-                foreach ($booking['technicians'] as &$tech) {
-                    $techInfo = $this->getUserInfo($tech['id']);
-                    if ($techInfo) {
-                        // Use profile_url from database if available
-                        if (!empty($techInfo['UA_PROFILE_URL'])) {
-                            $tech['profile_url'] = $techInfo['UA_PROFILE_URL'];
-                        }
-                        
-                        $tech['email'] = $techInfo['UA_EMAIL'] ?? '';
-                        $tech['phone'] = $techInfo['UA_PHONE_NUMBER'] ?? '';
-                    }
-                }
+                // Assign pre-fetched technicians to this booking
+                $booking['technicians'] = isset($bookingId) && isset($techniciansByBooking[$bookingId]) 
+                    ? $techniciansByBooking[$bookingId] 
+                    : [];
             }
         }
         
@@ -921,29 +963,6 @@ class ProductController extends BaseController
             $booking['customer_profile_url'] = $booking['CUSTOMER_PROFILE_URL'];
         }
         
-        // Add warehouse information if a warehouse ID is specified
-        if (isset($booking['PB_WAREHOUSE_ID']) && !empty($booking['PB_WAREHOUSE_ID'])) {
-            $warehouseModel = new \App\Models\WarehouseModel();
-            $warehouse = $warehouseModel->getWarehouseById($booking['PB_WAREHOUSE_ID']);
-            
-            if ($warehouse) {
-                $booking['warehouse_name'] = isset($warehouse['WHOUSE_NAME']) ? $warehouse['WHOUSE_NAME'] : 
-                    (isset($warehouse['whouse_name']) ? $warehouse['whouse_name'] : 'Unknown');
-                $booking['warehouse_location'] = isset($warehouse['WHOUSE_LOCATION']) ? $warehouse['WHOUSE_LOCATION'] : 
-                    (isset($warehouse['whouse_location']) ? $warehouse['whouse_location'] : '');
-            }
-        } else if (isset($booking['pb_warehouse_id']) && !empty($booking['pb_warehouse_id'])) {
-            $warehouseModel = new \App\Models\WarehouseModel();
-            $warehouse = $warehouseModel->getWarehouseById($booking['pb_warehouse_id']);
-            
-            if ($warehouse) {
-                $booking['warehouse_name'] = isset($warehouse['WHOUSE_NAME']) ? $warehouse['WHOUSE_NAME'] : 
-                    (isset($warehouse['whouse_name']) ? $warehouse['whouse_name'] : 'Unknown');
-                $booking['warehouse_location'] = isset($warehouse['WHOUSE_LOCATION']) ? $warehouse['WHOUSE_LOCATION'] : 
-                    (isset($warehouse['whouse_location']) ? $warehouse['whouse_location'] : '');
-            }
-        }
-        
         // Make sure inventory_deducted field is included in response
         $booking['inventory_deducted'] = isset($booking['PB_INVENTORY_DEDUCTED']) ? (bool)$booking['PB_INVENTORY_DEDUCTED'] : 
             (isset($booking['pb_inventory_deducted']) ? (bool)$booking['pb_inventory_deducted'] : false);
@@ -954,15 +973,42 @@ class ProductController extends BaseController
         // Debug log for technicians
         error_log("Product booking technicians (raw): " . json_encode($technicians));
         
+        // Get all technician IDs for a single query
+        $technicianIds = array_column($technicians, 'id');
+        
+        // Get all technician user info in one query if there are technicians
+        $technicianUserInfo = [];
+        if (!empty($technicianIds)) {
+            $techInfoResult = $this->getUserInfoForMultipleTechnicians($technicianIds);
+            foreach ($techInfoResult as $info) {
+                $technicianUserInfo[$info['UA_ID']] = $info;
+            }
+        }
+        
         // Process technician data to ensure email and phone are included
         $processedTechnicians = [];
         foreach ($technicians as $tech) {
+            // Get additional info from pre-fetched user info
+            $email = $tech['email'] ?? '';
+            $phone = $tech['phone'] ?? '';
+            $profile_url = $tech['profile_url'] ?? '/assets/images/user-profile/default-profile.png';
+            
+            // Override with data from the pre-fetched array if available
+            if (isset($technicianUserInfo[$tech['id']])) {
+                $userInfo = $technicianUserInfo[$tech['id']];
+                $email = $userInfo['UA_EMAIL'] ?? $email;
+                $phone = $userInfo['UA_PHONE_NUMBER'] ?? $phone;
+                if (!empty($userInfo['UA_PROFILE_URL'])) {
+                    $profile_url = $userInfo['UA_PROFILE_URL'];
+                }
+            }
+            
             $techData = [
                 'id' => $tech['id'],
                 'name' => $tech['name'],
-                'email' => isset($tech['email']) ? $tech['email'] : '',
-                'phone' => isset($tech['phone']) ? $tech['phone'] : '',
-                'profile_url' => $tech['profile_url'] ?? '/assets/images/user-profile/default-profile.png',
+                'email' => $email,
+                'phone' => $phone,
+                'profile_url' => $profile_url,
                 'status' => $tech['status'] ?? 'assigned',
                 'notes' => $tech['notes'] ?? ''
             ];
@@ -1209,5 +1255,37 @@ class ProductController extends BaseController
             error_log("Database error in getUserInfo: " . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Get user information for multiple technicians in one query
+     */
+    private function getUserInfoForMultipleTechnicians($technicianIds) 
+    {
+        if (empty($technicianIds)) {
+            return [];
+        }
+        
+        // Convert array to comma-separated string for SQL IN clause
+        $idPlaceholders = implode(',', array_fill(0, count($technicianIds), '?'));
+        
+        $sql = "SELECT UA_ID, UA_FIRST_NAME, UA_LAST_NAME, UA_EMAIL, UA_PHONE_NUMBER, UA_PROFILE_URL 
+                FROM USER_ACCOUNT 
+                WHERE UA_ID IN ($idPlaceholders)";
+                
+                try {
+                    $stmt = $this->pdo->prepare($sql);
+                    
+                    // Bind each ID as a parameter
+                    foreach ($technicianIds as $index => $id) {
+                        $stmt->bindValue($index + 1, $id, \PDO::PARAM_INT);
+                    }
+                    
+                    $stmt->execute();
+                    return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+                } catch (\PDOException $e) {
+                    error_log("Database error in getUserInfoForMultipleTechnicians: " . $e->getMessage());
+                    return [];
+                }
     }
 } 

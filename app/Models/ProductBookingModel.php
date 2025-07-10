@@ -58,12 +58,16 @@ class ProductBookingModel extends Model
                         p.PROD_NAME,
                         p.PROD_IMAGE,
                         p.PROD_HAS_FREE_INSTALL_OPTION,
-                        pb.PB_CUSTOMER_ID
+                        pb.PB_CUSTOMER_ID,
+                        w.WHOUSE_ID,
+                        w.WHOUSE_NAME,
+                        w.WHOUSE_LOCATION
                     FROM {$this->table} pb
                     LEFT JOIN CUSTOMER c ON pb.PB_CUSTOMER_ID = c.CU_ACCOUNT_ID
                     LEFT JOIN USER_ACCOUNT ua ON c.CU_ACCOUNT_ID = ua.UA_ID
                     LEFT JOIN PRODUCT_VARIANT pv ON pb.PB_VARIANT_ID = pv.VAR_ID
                     LEFT JOIN PRODUCT p ON pv.PROD_ID = p.PROD_ID
+                    LEFT JOIN WAREHOUSE w ON pb.PB_WAREHOUSE_ID = w.WHOUSE_ID
                     WHERE pb.PB_ID = :booking_id AND pb.PB_DELETED_AT IS NULL";
             
             $result = $this->queryOne($sql, [':booking_id' => $bookingId]);
@@ -72,6 +76,12 @@ class ProductBookingModel extends Model
                 error_log("No booking found with ID: $bookingId");
             } else {
                 error_log("Found booking: " . json_encode($result));
+                
+                // Add warehouse information directly from JOIN results
+                if (isset($result['WHOUSE_NAME'])) {
+                    $result['warehouse_name'] = $result['WHOUSE_NAME'];
+                    $result['warehouse_location'] = $result['WHOUSE_LOCATION'] ?? '';
+                }
                 
                 // Ensure PB_CUSTOMER_ID is set
                 if (!isset($result['PB_CUSTOMER_ID'])) {
@@ -284,7 +294,7 @@ class ProductBookingModel extends Model
 
         // Apply date range filter
         if (!empty($filters['date_range'])) {
-            $now = new Date();
+            $now = new \DateTime();
             $dateRange = $filters['date_range'];
             
             switch ($dateRange) {
@@ -336,19 +346,23 @@ class ProductBookingModel extends Model
                     pv.VAR_PRICE_WITH_INSTALL2,
                     pv.VAR_INSTALLATION_FEE,
                     p.PROD_NAME,
-                    p.PROD_IMAGE
+                    p.PROD_IMAGE,
+                    p.PROD_HAS_FREE_INSTALL_OPTION,
+                    w.WHOUSE_NAME,
+                    w.WHOUSE_LOCATION
                 FROM {$this->table} pb
                 LEFT JOIN CUSTOMER c ON pb.PB_CUSTOMER_ID = c.CU_ACCOUNT_ID
                 LEFT JOIN USER_ACCOUNT ua ON c.CU_ACCOUNT_ID = ua.UA_ID
                 LEFT JOIN PRODUCT_VARIANT pv ON pb.PB_VARIANT_ID = pv.VAR_ID
                 LEFT JOIN PRODUCT p ON pv.PROD_ID = p.PROD_ID
+                LEFT JOIN WAREHOUSE w ON pb.PB_WAREHOUSE_ID = w.WHOUSE_ID
                 LEFT JOIN PRODUCT_ASSIGNMENT pa ON pb.PB_ID = pa.PA_ORDER_ID";
 
         if (!empty($whereConditions)) {
             $sql .= " WHERE " . implode(" AND ", $whereConditions);
         }
 
-        $sql .= " GROUP BY pb.PB_ID, ua.UA_ID, pv.VAR_ID, p.PROD_ID ORDER BY pb.PB_ORDER_DATE DESC";
+        $sql .= " GROUP BY pb.PB_ID, ua.UA_ID, pv.VAR_ID, p.PROD_ID, w.WHOUSE_ID ORDER BY pb.PB_ORDER_DATE DESC";
 
         return $this->query($sql, $params);
     }
@@ -373,6 +387,45 @@ class ProductBookingModel extends Model
                 ORDER BY pa.PA_ASSIGNED_AT DESC";
 
         return $this->query($sql, [':booking_id' => $bookingId]);
+    }
+    
+    /**
+     * Get assigned technicians for multiple bookings in one query
+     * This optimization helps avoid N+1 query problems
+     */
+    public function getAssignedTechniciansForMultipleBookings($bookingIds)
+    {
+        if (empty($bookingIds)) {
+            return [];
+        }
+        
+        // Create named parameters for the IN clause
+        $placeholders = [];
+        $params = [];
+        
+        foreach ($bookingIds as $i => $id) {
+            $paramName = ":booking_id_$i";
+            $placeholders[] = $paramName;
+            $params[$paramName] = $id;
+        }
+        
+        $placeholderString = implode(',', $placeholders);
+        
+        $sql = "SELECT 
+                    pa.PA_ID,
+                    pa.PA_ORDER_ID as booking_id,
+                    pa.PA_TECHNICIAN_ID as id,
+                    ua.UA_FIRST_NAME || ' ' || ua.UA_LAST_NAME as name,
+                    pa.PA_NOTES as notes,
+                    pa.PA_STATUS as status,
+                    pa.PA_ASSIGNED_AT as assigned_at
+                FROM PRODUCT_ASSIGNMENT pa
+                JOIN TECHNICIAN t ON pa.PA_TECHNICIAN_ID = t.TE_ACCOUNT_ID
+                JOIN USER_ACCOUNT ua ON t.TE_ACCOUNT_ID = ua.UA_ID
+                WHERE pa.PA_ORDER_ID IN ($placeholderString)
+                ORDER BY pa.PA_ORDER_ID, pa.PA_ASSIGNED_AT DESC";
+
+        return $this->query($sql, $params);
     }
 
     // Remove all technicians from a product booking
