@@ -471,49 +471,61 @@ class ServiceRequestController extends BaseController
             $filters['has_technician'] = filter_var($_GET['has_technician'], FILTER_VALIDATE_BOOLEAN);
         }
         
-        // Get bookings with the specified filters
+        // Get bookings with the specified filters - now includes customer info
         $bookings = empty($filters) 
             ? $this->serviceModel->getAllActiveBookings() 
             : $this->serviceModel->getBookingsByCriteria($filters);
         
-        // Enhance booking data with additional information
+        // Fetch all technician assignments in a single query
+        $bookingIds = array_column($bookings, 'sb_id');
+        $techniciansMap = [];
+        
+        if (!empty($bookingIds)) {
+            // Get all assignments for all bookings in one query
+            $sql = "SELECT 
+                    ba.ba_booking_id, ba.ba_technician_id, ba.ba_status, ba.ba_notes,
+                    ua.ua_first_name, ua.ua_last_name, ua.ua_email, ua.ua_phone_number, ua.ua_profile_url
+                FROM booking_assignment ba
+                JOIN technician t ON ba.ba_technician_id = t.te_account_id
+                JOIN user_account ua ON t.te_account_id = ua.ua_id
+                WHERE ba.ba_booking_id IN (" . implode(',', array_fill(0, count($bookingIds), '?')) . ")
+                AND ba.ba_status IN ('assigned', 'in-progress', 'completed')";
+                
+            $assignments = $this->fetchAll($sql, $bookingIds);
+            
+            // Group technicians by booking ID
+            foreach ($assignments as $assignment) {
+                $bookingId = $assignment['ba_booking_id'];
+                
+                if (!isset($techniciansMap[$bookingId])) {
+                    $techniciansMap[$bookingId] = [];
+                }
+                
+                $techniciansMap[$bookingId][] = [
+                    'id' => $assignment['ba_technician_id'],
+                    'name' => $assignment['ua_first_name'] . ' ' . $assignment['ua_last_name'],
+                    'profile_url' => $assignment['ua_profile_url'] ?? '/assets/images/user-profile/default-profile.png',
+                    'status' => $assignment['ba_status'],
+                    'notes' => $assignment['ba_notes']
+                ];
+            }
+        }
+        
+        // Enhance booking data with already-fetched information
         $enhancedBookings = [];
         
         foreach ($bookings as $booking) {
-            // Get service type information
-            $serviceType = $this->serviceTypeModel->getServiceTypeById($booking['sb_service_type_id']);
-            
-            // Get customer information
-            $customerInfo = $this->getUserInfo($booking['sb_customer_id']);
-            
-            // Get assigned technicians
-            $assignedTechnicians = $this->bookingAssignmentModel->getAssignmentsForBooking($booking['sb_id']);
-            $technicians = [];
-            
-            foreach ($assignedTechnicians as $assignment) {
-                $technicianInfo = $this->getUserInfo($assignment['ba_technician_id']);
-                
-                if ($technicianInfo) {
-                    $technicians[] = [
-                        'id' => $assignment['ba_technician_id'],
-                        'name' => $technicianInfo['ua_first_name'] . ' ' . $technicianInfo['ua_last_name'],
-                        'profile_url' => $technicianInfo['ua_profile_url'] ?? '/assets/images/user-profile/default-profile.png',
-                        'status' => $assignment['ba_status'],
-                        'notes' => $assignment['ba_notes']
-                    ];
-                }
-            }
-            
-            // Add the enhanced data
+            // Format data using values already fetched from the optimized queries
             $enhancedBooking = $booking;
-            $enhancedBooking['service_name'] = $serviceType ? $serviceType['st_name'] : 'Unknown';
-            $enhancedBooking['customer_name'] = $customerInfo 
-                ? $customerInfo['ua_first_name'] . ' ' . $customerInfo['ua_last_name'] 
-                : 'Unknown';
-            $enhancedBooking['customer_email'] = $customerInfo ? $customerInfo['ua_email'] : '';
-            $enhancedBooking['customer_phone'] = $customerInfo ? $customerInfo['ua_phone_number'] : '';
-            $enhancedBooking['customer_profile_url'] = $customerInfo ? $customerInfo['ua_profile_url'] : '/assets/images/user-profile/default-profile.png';
-            $enhancedBooking['technicians'] = $technicians;
+            
+            // Customer info is already included in the query
+            $enhancedBooking['customer_name'] = $booking['customer_first_name'] . ' ' . $booking['customer_last_name'];
+            $enhancedBooking['customer_email'] = $booking['customer_email'];
+            $enhancedBooking['customer_phone'] = $booking['customer_phone'];
+            $enhancedBooking['customer_profile_url'] = $booking['customer_profile_url'] ?? '/assets/images/user-profile/default-profile.png';
+            
+            // Get technicians from our pre-fetched map
+            $enhancedBooking['technicians'] = $techniciansMap[$booking['sb_id']] ?? [];
             
             $enhancedBookings[] = $enhancedBooking;
         }
@@ -541,39 +553,30 @@ class ServiceRequestController extends BaseController
             return;
         }
         
-        // Debug log to see what's in the booking data
-        error_log("Booking data: " . json_encode($booking));
-        
-        // Get assigned technicians
-        $assignedTechnicians = $this->bookingAssignmentModel->getAssignmentsForBooking($id);
-        
-        // Debug log to see what's in the assignments
-        error_log("Assigned technicians: " . json_encode($assignedTechnicians));
+        // Fetch assigned technicians with join to get all technician info in one query
+        $sql = "SELECT 
+                ba.ba_technician_id, ba.ba_status, ba.ba_notes, ba.ba_assigned_at,
+                ua.ua_first_name, ua.ua_last_name, ua.ua_email, ua.ua_phone_number, ua.ua_profile_url
+            FROM booking_assignment ba
+            JOIN technician t ON ba.ba_technician_id = t.te_account_id
+            JOIN user_account ua ON t.te_account_id = ua.ua_id
+            WHERE ba.ba_booking_id = ?";
+            
+        $assignments = $this->fetchAll($sql, [$id]);
         
         $technicians = [];
-        
-        foreach ($assignedTechnicians as $assignment) {
-            $technicianInfo = $this->getUserInfo($assignment['ba_technician_id']);
-            
-            // Debug log for each technician info
-            error_log("Technician info for ID {$assignment['ba_technician_id']}: " . json_encode($technicianInfo));
-            
-            if ($technicianInfo) {
-                $technicians[] = [
-                    'id' => $assignment['ba_technician_id'],
-                    'name' => $technicianInfo['ua_first_name'] . ' ' . $technicianInfo['ua_last_name'],
-                    'profile_url' => $technicianInfo['ua_profile_url'] ?? '/assets/images/user-profile/default-profile.png',
-                    'email' => $technicianInfo['ua_email'] ?? '',
-                    'phone' => $technicianInfo['ua_phone_number'] ?? '',
-                    'status' => $assignment['ba_status'],
-                    'assigned_at' => $assignment['ba_assigned_at'],
-                    'notes' => $assignment['ba_notes']
-                ];
-            }
+        foreach ($assignments as $assignment) {
+            $technicians[] = [
+                'id' => $assignment['ba_technician_id'],
+                'name' => $assignment['ua_first_name'] . ' ' . $assignment['ua_last_name'],
+                'profile_url' => $assignment['ua_profile_url'] ?? '/assets/images/user-profile/default-profile.png',
+                'email' => $assignment['ua_email'] ?? '',
+                'phone' => $assignment['ua_phone_number'] ?? '',
+                'status' => $assignment['ba_status'],
+                'assigned_at' => $assignment['ba_assigned_at'],
+                'notes' => $assignment['ba_notes']
+            ];
         }
-        
-        // Debug log for the final technicians array
-        error_log("Final technicians array: " . json_encode($technicians));
         
         // Get customer profile URL
         $customerInfo = $this->getUserInfo($booking['sb_customer_id']);

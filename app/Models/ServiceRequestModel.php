@@ -34,18 +34,19 @@ class ServiceRequestModel extends Model
     public function getBookingWithDetails($bookingId)
     {
         $sql = "SELECT 
-                    sb.*, 
-                    st.st_name as service_name, 
-                    st.st_description as service_description,
-                    ua.ua_first_name as customer_first_name,
-                    ua.ua_last_name as customer_last_name,
-                    ua.ua_email as customer_email,
-                    ua.ua_phone_number as customer_phone
-                FROM {$this->table} sb
-                JOIN service_type st ON sb.sb_service_type_id = st.st_id
-                JOIN customer c ON sb.sb_customer_id = c.cu_account_id
-                JOIN user_account ua ON c.cu_account_id = ua.ua_id
-                WHERE sb.{$this->primaryKey} = :bookingId";
+                sb.*, 
+                st.st_name as service_name, 
+                st.st_description as service_description,
+                ua.ua_first_name as customer_first_name,
+                ua.ua_last_name as customer_last_name,
+                ua.ua_email as customer_email,
+                ua.ua_phone_number as customer_phone,
+                ua.ua_profile_url as customer_profile_url
+            FROM {$this->table} sb
+            JOIN service_type st ON sb.sb_service_type_id = st.st_id
+            JOIN customer c ON sb.sb_customer_id = c.cu_account_id
+            JOIN user_account ua ON c.cu_account_id = ua.ua_id
+            WHERE sb.{$this->primaryKey} = :bookingId";
 
         if ($this->useSoftDeletes) {
             $sql .= " AND sb.{$this->deletedAtColumn} IS NULL"; 
@@ -220,12 +221,25 @@ class ServiceRequestModel extends Model
     // Get all active (non-deleted) service bookings.
     public function getAllActiveBookings($orderBy = ['sb_preferred_date' => 'DESC', 'sb_preferred_time' => 'DESC'])
     {
-        $sql = "SELECT * FROM {$this->table}";
+        $sql = "SELECT 
+                sb.*,
+                st.st_name as service_name, 
+                st.st_description as service_description,
+                ua.ua_first_name as customer_first_name,
+                ua.ua_last_name as customer_last_name,
+                ua.ua_email as customer_email,
+                ua.ua_phone_number as customer_phone,
+                ua.ua_profile_url as customer_profile_url
+            FROM {$this->table} sb
+            JOIN service_type st ON sb.sb_service_type_id = st.st_id
+            JOIN customer c ON sb.sb_customer_id = c.cu_account_id
+            JOIN user_account ua ON c.cu_account_id = ua.ua_id";
+
         $whereClauses = [];
         $params = [];
 
         if ($this->useSoftDeletes) {
-            $whereClauses[] = "{$this->deletedAtColumn} IS NULL";
+            $whereClauses[] = "sb.{$this->deletedAtColumn} IS NULL";
         }
 
         if (!empty($whereClauses)) {
@@ -236,7 +250,7 @@ class ServiceRequestModel extends Model
             $orderParts = [];
             foreach ($orderBy as $column => $direction) {
                 if (preg_match('/^[a-zA-Z0-9_]+$/', $column) && in_array(strtoupper($direction), ['ASC', 'DESC'])) {
-                    $orderParts[] = "{$column} {$direction}";
+                    $orderParts[] = "sb.{$column} {$direction}";
                 }
             }
             if (!empty($orderParts)) {
@@ -250,7 +264,20 @@ class ServiceRequestModel extends Model
     // Get service bookings based on a set of criteria.
     public function getBookingsByCriteria(array $criteria, $orderBy = ['sb_preferred_date' => 'DESC', 'sb_preferred_time' => 'DESC'])
     {
-        $sql = "SELECT DISTINCT sb.* FROM {$this->table} sb";
+        $sql = "SELECT DISTINCT 
+                sb.*,
+                st.st_name as service_name, 
+                st.st_description as service_description,
+                ua.ua_first_name as customer_first_name,
+                ua.ua_last_name as customer_last_name,
+                ua.ua_email as customer_email,
+                ua.ua_phone_number as customer_phone,
+                ua.ua_profile_url as customer_profile_url
+            FROM {$this->table} sb
+            JOIN service_type st ON sb.sb_service_type_id = st.st_id
+            JOIN customer c ON sb.sb_customer_id = c.cu_account_id
+            JOIN user_account ua ON c.cu_account_id = ua.ua_id";
+
         $whereClauses = [];
         $params = [];
 

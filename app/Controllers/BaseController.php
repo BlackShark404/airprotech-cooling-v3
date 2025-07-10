@@ -199,6 +199,29 @@ class BaseController
     {
         return strtoupper($_SERVER['REQUEST_METHOD']) === 'DELETE';
     }
+    
+    /**
+     * Execute a database query and return all results
+     *
+     * @param string $sql SQL query with placeholders
+     * @param array $params Parameters for the SQL query
+     * @return array Array of results
+     */
+    protected function fetchAll($sql, $params = [])
+    {
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            if ($this->debugMode) {
+                error_log("Database query error: " . $e->getMessage());
+                error_log("SQL: " . $sql);
+                error_log("Params: " . print_r($params, true));
+            }
+            throw $e;
+        }
+    }
 
     protected function isOptions()
     {
