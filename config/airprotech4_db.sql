@@ -240,7 +240,7 @@ CREATE TABLE PRODUCT_BOOKING (
     PB_STATUS           VARCHAR(20) DEFAULT 'pending',
     PB_INVENTORY_DEDUCTED BOOLEAN DEFAULT FALSE,
     PB_WAREHOUSE_ID     INT,  -- The warehouse from which the products will be taken
-    PB_HAS_FREE_INSTALL_OPTION BOOLEAN, -- Stores whether free installation was available for this product
+    c BOOLEAN, -- Stores whether free installation was available for this product
 
     -- Updated to clarify all installation options:
     -- 'free_installation' - Installation is free (uses VAR_PRICE_FREE_INSTALL)
