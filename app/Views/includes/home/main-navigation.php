@@ -79,7 +79,6 @@
         border-radius: 8px;
         transition: all 0.2s ease;
         padding: 0.6rem 1rem;
-        margin-left: 0.7rem;
     }
     
     .login-btn:hover {
@@ -108,7 +107,7 @@
 <!-- Mobile Sidebar Overlay -->
 <div class="offcanvas offcanvas-start homeSidebar" tabindex="-1" id="homeSidebar" aria-labelledby="homeSidebarLabel">
     <div class="offcanvas-header">
-        <div class="d-flex align-items-center ps-3">
+        <div class="d-flex align-items-center">
             <img src="/assets/images/logo/Air-TechLogo.png" alt="Logo" class="rounded-circle me-2" width="40" height="40">
             <h5 class="offcanvas-title sidebar-brand m-0" id="homeSidebarLabel">AIR<span class="text-danger">PROTECH</span></h5>
         </div>
@@ -116,7 +115,7 @@
     </div>
     <div class="offcanvas-body">
         <!-- Navigation Links -->
-        <div class="list-group list-group-flush sidebar-nav mb-4 ps-3">
+        <div class="list-group list-group-flush sidebar-nav mb-4">
             <a href="#hero" class="list-group-item list-group-item-action d-flex align-items-center">
                 <i class="fas fa-home me-3"></i> Home
             </a>
@@ -131,7 +130,7 @@
             </a>
             <a href="#contact" class="list-group-item list-group-item-action d-flex align-items-center">
                 <i class="fas fa-envelope me-3"></i> Contact
-            </a>s
+            </a>
         </div>
         
         <!-- Login Button -->

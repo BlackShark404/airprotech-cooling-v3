@@ -139,20 +139,18 @@
     <?php require __DIR__. '/../includes/user/main-navigation.php' ?>
 
     <!-- Hero Section -->
-<section class="hero-section text-white py-5">
-    <div class="container hero-content">
-        <div class="row">
-            <div class="col-lg-8 col-md-10">
-                <h1 class="fw-bold mb-3 display-4">Professional AC Services & Solutions</h1>
-                <p class="mb-4 lead">Expert installation, maintenance, and repair services for all your air conditioning needs</p>
-                <button class="btn btn-danger cta-button px-4 py-2" data-bs-toggle="modal" data-bs-target="#bookServiceModal">Request Service</button>
+    <section class="hero-section text-white py-5">
+        <div class="container hero-content">
+            <div class="row">
+                <div class="col-lg-8 col-md-10">
+                    <h1 class="fw-bold mb-3 display-4">Professional AC Services & Solutions</h1>
+                    <p class="mb-4 lead">Expert installation, maintenance, and repair services for all your air conditioning needs</p>
+                    <button class="btn btn-danger cta-button px-4 py-2" data-bs-toggle="modal" data-bs-target="#bookServiceModal">Request Service</button>
+                </div>
             </div>
         </div>
-    </div>
-</section>
-
+    </section>
     
-
     <!-- Service Categories -->
     <section class="py-5 bg-light">
         <div class="container">

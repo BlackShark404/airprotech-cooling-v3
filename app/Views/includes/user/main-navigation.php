@@ -107,7 +107,6 @@
         border-radius: 8px;
         transition: all 0.2s ease;
         padding: 0.6rem 1rem;
-        margin-left: 0.7rem;
     }
     
     .sidebar-logout:hover {
@@ -152,7 +151,7 @@
 <!-- Mobile Sidebar Overlay -->
 <div class="offcanvas offcanvas-start userSidebar" tabindex="-1" id="userSidebar" aria-labelledby="userSidebarLabel">
     <div class="offcanvas-header">
-        <div class="d-flex align-items-center ps-3">
+        <div class="d-flex align-items-center">
             <img src="/assets/images/logo/Air-TechLogo.png" alt="Logo" class="rounded-circle me-2" width="40" height="40">
             <h5 class="offcanvas-title sidebar-brand m-0" id="userSidebarLabel">AIR<span class="text-danger">PROTECH</span></h5>
         </div>
@@ -174,7 +173,7 @@
         </div>
         
         <!-- Navigation Links -->
-        <div class="list-group list-group-flush sidebar-nav mb-4 ps-3">
+        <div class="list-group list-group-flush sidebar-nav mb-4">
             <a href="/user/services" class="list-group-item list-group-item-action d-flex align-items-center">
                 <i class="fas fa-tools me-3"></i> Services
             </a>

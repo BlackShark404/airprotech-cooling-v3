@@ -233,7 +233,7 @@ class ProductBookingManager {
                                     <p class="text-muted mb-1">Preferred Date: ${new Date(preferredDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                                     <span class="badge bg-${this.getStatusBadgeClass(status)}-subtle text-${this.getStatusBadgeClass(status)}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
                                     <div class="mt-2">
-                                        <button class="btn btn-primary view-product-details" data-booking-id="${id}">View Details</button>
+                                        <button class="btn btn-danger view-product-details" data-booking-id="${id}">View Details</button>
                                     </div>
                                 </div>
                             </div>
