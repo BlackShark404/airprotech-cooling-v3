@@ -29,28 +29,8 @@
         </div>
     </div>
 
-    <!-- Main Navigation -->
-    <nav class="navbar navbar-expand-lg bg-white shadow-sm sticky-top">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center" href="#">
-                <img src="/assets/images/logo/Air-TechLogo.png" alt="Logo" class="rounded-circle me-2" width="40" height="40">
-                <span class="brand-text">AIR<span class="text-danger">PROTECH</span></span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item"><a class="nav-link" href="#hero">Home</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#our-services">Our Services</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#featured-products">Featured Products</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#why-choose-us">Why Choose Us</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
-                    <li class="nav-item"><a class="btn btn-danger ms-2" href="/login">Login</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    <!-- Include Main Navigation -->
+    <?php include_once(__DIR__ . '/../includes/home/main-navigation.php'); ?>
 
     <!-- Hero Section -->
     <section id="hero">

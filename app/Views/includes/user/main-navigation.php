@@ -100,13 +100,14 @@
     /* Logout button styling */
     .sidebar-logout-container {
         margin-top: auto;
-        padding: 0 2.5rem;
+        padding: 0 1.5rem;
     }
     
     .sidebar-logout {
         border-radius: 8px;
         transition: all 0.2s ease;
         padding: 0.6rem 1rem;
+        margin-left: 0.7rem;
     }
     
     .sidebar-logout:hover {
