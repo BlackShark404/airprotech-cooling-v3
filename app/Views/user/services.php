@@ -92,7 +92,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 50%;
+            border-radius: 50%; 
             margin: 0 auto 1rem;
             background-color: var(--primary-color);
             color: white;

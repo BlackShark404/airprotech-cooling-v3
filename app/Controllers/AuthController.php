@@ -141,7 +141,6 @@ class AuthController extends BaseController
             }
         }
 
-        $profileUrl = $avatar->generate($data['first_name'] . ' ' . $data['last_name']);
         $firstName = $data['first_name'];
         $lastName = $data['last_name'];
         $email = $data['email'];
@@ -171,8 +170,8 @@ class AuthController extends BaseController
         }
 
         // Create the user
-        $result = $this->userModel->createUser([
-            'ua_profile_url' => $profileUrl,
+        $userId = $this->userModel->createUser([
+            'ua_profile_url' => '/assets/images/user-profile/default-profile.png', // temporary default
             'ua_first_name' => $firstName,
             'ua_last_name' => $lastName,
             'ua_email' => $email,
@@ -180,8 +179,17 @@ class AuthController extends BaseController
             'ua_role_id' => '1',
             'ua_is_active' => true
         ]);
+        
+        // If user creation was successful, generate and save the avatar
+        if ($userId) {
+            // Generate avatar with the user's full name and save it locally
+            $profileUrl = $avatar->downloadAndSaveAvatar($firstName . ' ' . $lastName, $userId);
+            
+            // Update the user record with the new avatar URL
+            $this->userModel->updateUser($userId, ['ua_profile_url' => $profileUrl]);
+        }
 
-        if ($result) {
+        if ($userId) {
             return $this->jsonSuccess(
                 ['redirect_url' => '/login'],
                 'User registered successfully'

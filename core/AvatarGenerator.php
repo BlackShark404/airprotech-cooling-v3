@@ -8,6 +8,7 @@ class AvatarGenerator
     private string $background;
     private string $color;
     private int $size;
+    private string $avatarDir = 'uploads/profile_images/';
 
     /**
      * Constructor to initialize avatar properties.
@@ -51,7 +52,7 @@ class AvatarGenerator
     public function parseAvatarUrl(string $url): array
     {
         $parsedUrl = parse_url($url);                     // Parse the URL into components
-        parse_str($parsedUrl['query'], $queryParams);     // Parse query string into array
+        parse_str($parsedUrl['query'] ?? '', $queryParams);     // Parse query string into array
 
         return [
             'name' => urldecode($queryParams['name'] ?? ''),
@@ -76,5 +77,58 @@ class AvatarGenerator
         $this->size = $oldDetails['size'] ?? $this->size;
 
         return $this->generate($newName);  // Return new avatar URL with updated name
+    }
+
+    /**
+     * Downloads and saves a UI avatar to the local filesystem.
+     * 
+     * @param string $name - The user's name for generating the avatar.
+     * @param int $userId - The user ID to create a unique filename.
+     * @return string - The URL path to the saved avatar.
+     */
+    public function downloadAndSaveAvatar(string $name, int $userId): string
+    {
+        // Generate the UI Avatar URL
+        $avatarUrl = $this->generate($name);
+        
+        // Generate a unique filename based on user ID and timestamp
+        $filename = 'avatar_' . $userId . '_' . time() . '.png';
+        
+        // Set uploads directory using DOCUMENT_ROOT like UserController
+        $uploadsDir = $_SERVER['DOCUMENT_ROOT'] . '/' . $this->avatarDir;
+        
+        // Create directory if it doesn't exist
+        if (!file_exists($uploadsDir)) {
+            mkdir($uploadsDir, 0755, true);
+        }
+        
+        $filePath = $uploadsDir . '/' . $filename;
+        
+        // Download the image from UI Avatars
+        $imageContent = file_get_contents($avatarUrl);
+        if ($imageContent === false) {
+            return '/assets/images/user-profile/default-profile.png';
+        }
+        
+        // Save the image to the filesystem
+        if (file_put_contents($filePath, $imageContent) === false) {
+            return '/assets/images/user-profile/default-profile.png';
+        }
+        
+        // Return the web-accessible path to the image
+        return '/' . $this->avatarDir . $filename;
+    }
+
+    /**
+     * Sets the directory where avatars should be stored.
+     * 
+     * @param string $dir - The directory path.
+     * @return void
+     */
+    public function setAvatarDirectory(string $dir): void
+    {
+        // Remove leading and trailing slashes for consistency
+        $dir = trim($dir, '/');
+        $this->avatarDir = $dir;
     }
 }
